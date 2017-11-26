@@ -32,7 +32,13 @@ if __name__ == '__main__':
     url1 = 'https://www.amazon.cn/%E5%9B%BE%E4%B9%A6/b/ref=sa_menu_top_books_l1?ie=UTF8&node=658390051'
     url2 = 'https://www.amazon.cn/s/ref=lp_658390051_nr_n_0?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658394051&bbn=658391051&ie=UTF8&qid=1511598696&rnid=658391051'
     url3 = 'https://www.amazon.cn/s/ref=lp_658394051_nr_n_0?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658394051%2Cn%3A658508051&bbn=658394051&ie=UTF8&qid=1511598711&rnid=658394051'
+    # url4 = 'https://www.amazon.cnhttps://www.amazon.cn/s/ref=lp_658394051_nr_n_0?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658394051%2Cn%3A658508051&bbn=658394051&ie=UTF8&qid=1511624344&rnid=658394051'
 
+    url5 = 'https://www.amazon.cn/s/ref=lp_658390051_nr_n_0?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658394051&bbn=658391051&ie=UTF8&qid=1511624321&rnid=658391051'
+    url6 = 'https://www.amazon.cn/s/ref=lp_658394051_nr_n_0?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658394051%2Cn%3A658508051&bbn=658394051&ie=UTF8&qid=1511624646&rnid=658394051'
+    url7 = 'https://www.amazon.cn/s/ref=lp_658508051_nr_n_0?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658394051%2Cn%3A658508051%2Cn%3A659356051&bbn=658508051&ie=UTF8&qid=1511624992&rnid=658508051'
+    url8 = 'https://www.amazon.cn/s/ref=lp_2084813051_nr_n_0/460-3124759-2202826?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A2045366051%2Cn%3A2078652051%2Cn%3A2084813051%2Cn%3A2084814051&bbn=2084813051&ie=UTF8&qid=1511626235&rnid=2084813051'
+    url9 = 'https://www.amazon.cn/s/ref=lp_2084814051_ex_n_1?rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A2045366051%2Cn%3A2078652051%2Cn%3A2084813051&bbn=2084813051&ie=UTF8&qid=1511626763'
     headers = {
         'User-Agent': FakeChromeUA.get_ua(),
         'Accept-Encoding': 'gzip, deflate, sdch',
@@ -42,7 +48,7 @@ if __name__ == '__main__':
     }
     # print(headers)
     # print(html)
-    html = response(url3, headers=headers)
+    html = response('https://www.amazon.cn/s/ref=lp_2045366051_nr_n_4?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A2045366051%2Cn%3A2078652051&bbn=2045366051&ie=UTF8&qid=1511627736&rnid=2045366051', headers=headers)
     html_1 = '''
         
                       <a href="/s/ref=lp_658390051_nr_n_0?fst=as%3Aoff&amp;rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658394051&amp;bbn=658391051&amp;ie=UTF8&amp;qid=1511598696&amp;rnid=658391051" target="_blank">
@@ -240,9 +246,9 @@ if __name__ == '__main__':
             
     '''
     # print(html)
-    categories = re.findall('<a href="(/s/ref=lp_\d+_nr_n_[\d+].*?)>.*?<span class="refinementLink">(.*?)</span>.*?</a>', html, re.S|re.M)
-    # print(categories)
-    print(len(categories))
+    categories = re.findall('<li style="margin-left: [-\d]+px">.*?<a href="(/s/ref=lp_\d+_nr_n_[\d+].*?)">.*?<span class="refinementLink">(.*?)</span>.*?</a>.*?</li>', html, re.S|re.M)
+    print(categories)
+    # print(len(categories))
     for c in categories:
         a, b = c
         print(a, b)
