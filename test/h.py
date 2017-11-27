@@ -1,9 +1,7 @@
-from collections import namedtuple
-
-import aiohttp
-import asyncio
 import re
-from av import AvGot as av
+
+from test.av import AvGot as av
+
 ROOT = "https://movie.douban.com/tag/"
 
 # 正则：类别地址与类别名称
