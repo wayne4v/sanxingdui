@@ -24,8 +24,12 @@ except ImportError:
     from asyncio import Queue
 
 # logging.basicConfig(filename='zcn3.log', level=logging.DEBUG, handlers={})
+# LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
+# DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"
+# logging.basicConfig(format=LOG_FORMAT, datefmt=DATE_FORMAT)
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.DEBUG)
+# LOGGER.format(LOG_FORMAT)
 handler = logging.FileHandler('zcn.log', 'a', 'utf-8')
 LOGGER.addHandler(handler)
 
@@ -120,14 +124,11 @@ class Crawl:
         self.done.append(fetch_statistic)
 
     async def parse_links(self, response):
-        print('解析网页')
         links = set()
         content_type = None
         encoding = None
-        # print(await response.read())
         if response.status == 200:
             content_type = response.headers.get('content-type')
-            print(content_type)
             if content_type in ('text/html', 'application/xml', 'text/html;charset=UTF-8'):
                 pdict = {}
                 if content_type:
@@ -140,13 +141,6 @@ class Crawl:
                     '''(?i)href=["']([^\s"'<>]+)'''
                     urls = set(re.findall('<li style="margin-left: [-\d]+px">.*?<a href="(/s/ref=lp_\d+_nr_n_[\d+].*?)">.*?<span class="refinementLink">(.*?)</span>.*?</a>.*?</li>',
                                           text, re.S|re.M))
-                    print(urls)
-                    # if not len(urls):
-                    #     print('空的.应该是最后的连接了')
-                    #     prices = [(low, low+1) for low in range(1,100,2)]
-                    #     for price in prices:
-                    #         low, height = price
-                    #         LOGGER.info("细分分类价格链接: %s&low-price=%s&high-price=%s", str(response.url), low, height)
 
                     if urls:
                         LOGGER.info('got %r distinct urls from %r', len(urls), response.url)
@@ -155,7 +149,11 @@ class Crawl:
                         try:
                             for price in prices:
                                 p = PriceLowHigh._make(price)
-                                LOGGER.debug("细分分类价格链接: %s&low-price=%s&high-price=%s ", str(response.url), p.low, p.high)
+                                LOGGER.info = LOGGER.debug("细分分类价格链接: %s&low-price=%s&high-price=%s ", str(response.url), p.low, p.high)
+                                """TODO
+                                获取当前细分价格下的书目的数量. book_nums record_num
+                                pagination_num = math.ceil(book_nums / record_num)
+                                """
                         except Exception as e:
                             print(e)
                     # print(len(urls))
@@ -164,22 +162,16 @@ class Crawl:
                         k = u.replace('&amp;', '&')
                         normalized = urljoin(str(response.url), k)
                         defragmented, frag = urldefrag(normalized)
-                        print(defragmented)
-                        print('我已经进入下一级')
                         if self.url_allowed(defragmented):
                             print(defragmented,t)
                             ''' Children's Books（儿童图书） General (科学通俗读物) 这两个陷入了回调.
-                            INFO:__main__:redirect to 'https://www.amazon.cn/s/ref=lp_2084813051_nr_n_11/460-8646033-3118437?rh=n%3A2084813051&ie=UTF8' from 
-'https://www.amazon.cn/s/ref=lp_2084813051_nr_n_11/460-8646033-3118437?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A2045366051%2Cn%3A2078652051%2Cn%3A2084813051%2Cn%3A2084839051&bbn=2084813051&ie=UTF8&qid=1511710241&rnid=2084813051'
-'''
+                                INFO:__main__:redirect to 'https://www.amazon.cn/s/ref=lp_2084813051_nr_n_11/460-8646033-3118437?rh=n%3A2084813051&ie=UTF8' from 
+                                'https://www.amazon.cn/s/ref=lp_2084813051_nr_n_11/460-8646033-3118437?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A2045366051%2Cn%3A2078652051%2Cn%3A2084813051%2Cn%3A2084839051&bbn=2084813051&ie=UTF8&qid=1511710241&rnid=2084813051'
+                            '''
                             LOGGER.info = LOGGER.debug('previous url: %s, next url: %s, title: %s',str(response.url), defragmented, t)
-                            # LOGGER.info("中国".encode('utf-8').decode('utf-8'))
-                            # logging.warning("helo")
                             if t == "General (科学通俗读物)":
-                                # pass
                                 LOGGER.error("错误的分类: %r", t)
                             else:
-                                print('add links....')
                                 links.add(defragmented)
 
         stat = FetchStatistic(url=response.url)
@@ -190,7 +182,6 @@ class Crawl:
         exception = None
         while tries < self.max_tries:
             try:
-                # print("fetch function is doing...")
                 headers = {
                     'User-Agent': FakeChromeUA.get_ua(),
                     'Accept-Encoding': 'gzip, deflate, sdch',
