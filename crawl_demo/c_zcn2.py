@@ -12,6 +12,9 @@ from contextlib import closing
 from collections import namedtuple
 import random
 import cgi
+import math
+import os
+from configparser import ConfigParser
 # import urllib.parse
 try:
     # Python 3.4.
@@ -20,8 +23,13 @@ except ImportError:
     # Python 3.5.
     from asyncio import Queue
 
-logging.basicConfig(filename='zcn.log', level=logging.DEBUG)
-LOGGER = logging.getLogger(__name__)
+# logging.basicConfig(filename='zcn3.log', level=logging.DEBUG, handlers={})
+LOGGER = logging.getLogger('asyncio').setLevel(logging.DEBUG)
+handler = logging.FileHandler('zcn.log', 'a', 'utf-8')
+LOGGER.addHandler(handler)
+
+
+#TODO 错误尝试数优化.
 
 """2017-11-24 11:17:59
 """
@@ -63,7 +71,11 @@ def is_redirect(response):
     return response.status in (300, 301, 302, 303, 307)
 
 class Crawl:
-    def __init__(self, roots, exclude=None, strict=True, max_redirect=1, max_tries=2, max_tasks=50, *, loop=None):
+    def __init__(self, roots, exclude=None,
+                 strict=True,
+                 base_url = base_url,
+                 max_redirect=1, max_tries=2, max_tasks=5, proxy=None, *, loop=None):
+        self.base_url = base_url
         self.t0 = time.time()
         self.t1 = None
         self.strict = strict
@@ -73,7 +85,7 @@ class Crawl:
         self.max_tasks = max_tasks
         self.loop = loop or asyncio.get_event_loop()
         self.q = Queue(loop=self.loop)
-        self.p = PRXY_ADDRESS
+        self.proxy = proxy
         self.session = aiohttp.ClientSession(loop=self.loop)
         self.root_domains = set()
         self.seen_urls = set()
@@ -125,29 +137,41 @@ class Crawl:
                     '''(?i)href=["']([^\s"'<>]+)'''
                     urls = set(re.findall('<li style="margin-left: [-\d]+px">.*?<a href="(/s/ref=lp_\d+_nr_n_[\d+].*?)">.*?<span class="refinementLink">(.*?)</span>.*?</a>.*?</li>',
                                           text, re.S|re.M))
-                    # print(urls)
+                    print(urls)
                     if urls:
                         LOGGER.info('got %r distinct urls from %r',
                                     len(urls), response.url)
 
-                    for url in urls:
-                        u, t = url
-                        k = u.replace('&amp;', '&')
-                        normalized = urljoin(str(response.url), k)
-                        defragmented, frag = urldefrag(normalized)
-                        # print(defragmented, frag)
-                        if self.url_allowed(defragmented):
-                            print(defragmented,t)
-                            ''' Children's Books（儿童图书） General (科学通俗读物) 这两个陷入了回调.
-                            INFO:__main__:redirect to 'https://www.amazon.cn/s/ref=lp_2084813051_nr_n_11/460-8646033-3118437?rh=n%3A2084813051&ie=UTF8' from 
-'https://www.amazon.cn/s/ref=lp_2084813051_nr_n_11/460-8646033-3118437?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A2045366051%2Cn%3A2078652051%2Cn%3A2084813051%2Cn%3A2084839051&bbn=2084813051&ie=UTF8&qid=1511710241&rnid=2084813051'
-'''
-                            LOGGER.debug('response url: %r, title: %r, url: %r',response.url, defragmented, t )
-                            if t == "General (科学通俗读物)":
-                                # pass
-                                LOGGER.error("错误的分类: %r", t)
-                            else:
-                                links.add(defragmented)
+                    if not len(urls):
+                        prices = [(low, low+1) for low in range(1,100,20)]
+                        for price in prices:
+                            low, height = price
+                            LOGGER.info("最少的链接是: %s&low-price=%s&high-price=%s", str(response.url), low, height)
+                            """TODO
+                            获取当前细分价格下的书目的数量. book_nums record_num
+                            pagination_num = math.ceil(book_nums / record_num)
+                            """
+                    else:
+                        for url in urls:
+                            u, t = url
+                            k = u.replace('&amp;', '&')
+                            normalized = urljoin(str(response.url), k)
+                            defragmented, frag = urldefrag(normalized)
+                            # print(defragmented, frag)
+                            if self.url_allowed(defragmented):
+                                print(defragmented,t)
+                                ''' Children's Books（儿童图书） General (科学通俗读物) 这两个陷入了回调.
+                                INFO:__main__:redirect to 'https://www.amazon.cn/s/ref=lp_2084813051_nr_n_11/460-8646033-3118437?rh=n%3A2084813051&ie=UTF8' from 
+    'https://www.amazon.cn/s/ref=lp_2084813051_nr_n_11/460-8646033-3118437?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A2045366051%2Cn%3A2078652051%2Cn%3A2084813051%2Cn%3A2084839051&bbn=2084813051&ie=UTF8&qid=1511710241&rnid=2084813051'
+    '''
+                                LOGGER.info = LOGGER.debug('previous url: %s, next url: %s, title: %s',str(response.url), defragmented, t)
+                                # LOGGER.info("中国".encode('utf-8').decode('utf-8'))
+                                # logging.warning("helo")
+                                if t == "General (科学通俗读物)":
+                                    # pass
+                                    LOGGER.error("错误的分类: %r", t)
+                                else:
+                                    links.add(defragmented)
 
         stat = FetchStatistic(url=response.url)
         return stat, links
@@ -165,7 +189,7 @@ class Crawl:
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                     'Connection': 'keep-alive'
                 }
-                response = await self.session.get(url, allow_redirects=False, headers=headers) #proxy=self.p,
+                response = await self.session.get(url, allow_redirects=False, headers=headers, proxy=self.proxy) #proxy=self.p,
                 if tries > 1:
                     LOGGER.info = LOGGER.info('try %r for %r success', tries, url)
                 break
@@ -277,29 +301,26 @@ class Crawl:
 
 
 if __name__ == '__main__':
-    # loop = uvloop.new_event_loop()
-    # asyncio.set_event_loop(loop)
+    loop = uvloop.new_event_loop()
+    asyncio.set_event_loop(loop)
     loop = asyncio.get_event_loop()
 
-    # zcn_root = "https://www.amazon.cn/s/ref=lp_658390051_nr_n_28?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658401051&bbn=658391051&ie=UTF8&qid=1511335822&rnid=658391051"
-    # demo_url = "http://httpbin.org/ip"
-    # baidu_url = "http://www.baidu.com"
-
     roots = [
-        'https://www.amazon.cn/%E5%9B%BE%E4%B9%A6/b/ref=sa_menu_top_books_l1?ie=UTF8&node=658390051'
-        # 'https://www.amazon.cn/s/ref=lp_658390051_nr_n_36?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A2045366051&bbn=658391051&ie=UTF8&qid=1511664262&rnid=658391051'
-        # demo_url
-        # baidu_url
-        # zcn_root,
-        # demo_root,
-        # zcn_root2
-        # 'https://www.amazon.cn/s/ref=lp_658390051_nr_n_0?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658394051&bbn=658391051&ie=UTF8&qid=1511664262&rnid=658391051'
-        # 'https://www.amazon.cn/s/ref=lp_2045366051_nr_n_4?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A2045366051%2Cn%3A2078652051&bbn=2045366051&ie=UTF8&qid=1511709622&rnid=2045366051'
-        # 'https://www.amazon.cn/s/ref=lp_2084813051_nr_n_11?rh=n%3A2084813051&ie=UTF8'
-        # 'https://www.amazon.cn/s/ref=lp_2084813051_ex_n_1?rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A2045366051%2Cn%3A2078652051&bbn=2078652051&ie=UTF8&qid=1511710640'
+        # 'https://www.amazon.cn/%E5%9B%BE%E4%B9%A6/b/ref=sa_menu_top_books_l1?ie=UTF8&node=658390051'
+        'https://www.amazon.cn/s/ref=lp_658508051_nr_n_0?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658394051%2Cn%3A658508051%2Cn%3A659356051&bbn=658508051&ie=UTF8&qid=1511762114&rnid=658508051'
     ]
 
-    crawler = Crawl(roots)
+    cfg = ConfigParser()
+    proxy = cfg.read(os.path.expanduser('~/.config.ini'))
+    base_url = cfg.get('zcn', 'base_url')
+    is_proxy = True
+    if is_proxy:
+        proxy = cfg.get('proxy', 'auth_proxy')
+        crawler = Crawl(roots, proxy=proxy, base_url=base_url)
+    else:
+        proxy = None
+        crawler = Crawl(roots, base_url= base_url)
+
     try:
         a1 = time.time()
         loop.run_until_complete(crawler.crawl())  # Crawler gonna crawl.
@@ -316,8 +337,3 @@ if __name__ == '__main__':
         loop.run_forever()
 
         loop.close()
-        # https://www.amazon.cn/s/ref=lp_658390051_nr_n_0?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658394051&bbn=658391051&ie=UTF8&qid=1511403641&rnid=658391051
-        # https://www.amazon.cn/s/ref=lp_658394051_nr_n_0?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658394051%2Cn%3A658508051&bbn=658394051&ie=UTF8&qid=1511506580&rnid=658394051
-        # https://www.amazon.cn/s/ref=lp_658508051_nr_n_0?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658394051%2Cn%3A658508051%2Cn%3A659356051&bbn=658508051&ie=UTF8&qid=1511506663&rnid=658508051
-        # https://www.amazon.cn/s/ref=lp_658508051_nr_n_0?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658394051%2Cn%3A658508051%2Cn%3A659356051&bbn=658508051&ie=UTF8&qid=1511506663&rnid=658508051
-        # https://www.amazon.cn/s/ref=lp_658508051_nr_n_1?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658394051%2Cn%3A658508051%2Cn%3A659357051&bbn=658508051&ie=UTF8&qid=1511506663&rnid=658508051
