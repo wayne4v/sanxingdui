@@ -3,7 +3,7 @@
 ## install
 1. touch config_cralw.ini to your '~' dir
 
-##参考资料
+## 参考资料
  - http://blog.csdn.net/u013055678/article/details/54172693
  - http://blog.csdn.net/kwsy2008/article/details/48372665
  - https://www.cnblogs.com/wang-yc/p/5693288.html
