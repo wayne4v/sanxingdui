@@ -123,6 +123,7 @@ class Crawl:
         links = set()
         content_type = None
         encoding = None
+        price_link = []
         if response.status == 200:
             content_type = response.headers.get('content-type')
             response_url = str(response.url)
@@ -142,17 +143,14 @@ class Crawl:
                     if urls:
                         LOGGER.info('got %r distinct urls from %r', len(urls), response.url)
                     else:
-                        prices = [(price_g, price_g+1) for price_g in range(1, 100, 2)]
-                        try:
-                            for price in prices:
-                                p = PriceLowHigh._make(price)
-                                # LOGGER.info = LOGGER.debug("细分分类价格链接: %s&low-price=%s&high-price=%s ", str(response.url), p.low, p.high)
-                                price_link = "{}&low-price={}&high-price={}".format(response_url, p.low, p.high)
-                                redis_server.lpush("price_link",price_link)
+                        for price_g in range(1, 100, 2):
+                            low_price = price_g
+                            high_price = price_g + 1
+                            price_link.append("{}&low-price={}&high-price={}".format(response_url, low_price, high_price))
 
-                        except Exception as e:
-                            print(e)
-                    # print(len(urls))
+                    if len(price_link) > 0:
+                        redis_server.lpush("price_link_tmp", *price_link)
+
                     for url in urls:
                         u, t = url
                         k = u.replace('&amp;', '&')
@@ -297,9 +295,9 @@ class Crawl:
 
 
 if __name__ == '__main__':
-    # loop = uvloop.new_event_loop()
-    # asyncio.set_event_loop(loop)
-    loop = asyncio.get_event_loop()
+    loop = uvloop.new_event_loop()
+    asyncio.set_event_loop(loop)
+    # loop = asyncio.get_event_loop()
 
     roots = [
         # 'https://www.amazon.cn/%E5%9B%BE%E4%B9%A6/b/ref=sa_menu_top_books_l1?ie=UTF8&node=658390051'
