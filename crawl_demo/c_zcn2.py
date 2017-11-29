@@ -14,6 +14,7 @@ import random
 import cgi
 import math
 import os
+import redis
 from configparser import ConfigParser
 # import urllib.parse
 try:
@@ -23,16 +24,13 @@ except ImportError:
     # Python 3.5.
     from asyncio import Queue
 
-# logging.basicConfig(filename='zcn3.log', level=logging.DEBUG, handlers={})
-# LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
-# DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"
-# logging.basicConfig(format=LOG_FORMAT, datefmt=DATE_FORMAT)
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.DEBUG)
-# LOGGER.format(LOG_FORMAT)
 handler = logging.FileHandler('zcn.log', 'a', 'utf-8')
 LOGGER.addHandler(handler)
 
+pool=redis.ConnectionPool(host='127.0.0.1',port=6379,db=0, password="foobared")
+redis_server = redis.StrictRedis(connection_pool=pool)
 
 #TODO 错误尝试数优化.
 
@@ -73,7 +71,6 @@ def lenient_host(host):
 
 
 def is_redirect(response):
-    # print(response.status)
     return response.status in (300, 301, 302, 303, 307)
 
 class Crawl:
@@ -96,7 +93,6 @@ class Crawl:
         self.root_domains = set()
         self.seen_urls = set()
         self.done = []
-        # self.headers=
         for root in roots:
             parts = urlparse(root)
             host, port = splitport(parts.netloc)
@@ -129,6 +125,7 @@ class Crawl:
         encoding = None
         if response.status == 200:
             content_type = response.headers.get('content-type')
+            response_url = str(response.url)
             if content_type in ('text/html', 'application/xml', 'text/html;charset=UTF-8'):
                 pdict = {}
                 if content_type:
@@ -145,15 +142,14 @@ class Crawl:
                     if urls:
                         LOGGER.info('got %r distinct urls from %r', len(urls), response.url)
                     else:
-                        prices = [(price_g, price_g+1) for price_g in range(1,100,2)]
+                        prices = [(price_g, price_g+1) for price_g in range(1, 100, 2)]
                         try:
                             for price in prices:
                                 p = PriceLowHigh._make(price)
-                                LOGGER.info = LOGGER.debug("细分分类价格链接: %s&low-price=%s&high-price=%s ", str(response.url), p.low, p.high)
-                                """TODO
-                                获取当前细分价格下的书目的数量. book_nums record_num
-                                pagination_num = math.ceil(book_nums / record_num)
-                                """
+                                # LOGGER.info = LOGGER.debug("细分分类价格链接: %s&low-price=%s&high-price=%s ", str(response.url), p.low, p.high)
+                                price_link = "{}&low-price={}&high-price={}".format(response_url, p.low, p.high)
+                                redis_server.lpush("price_link",price_link)
+
                         except Exception as e:
                             print(e)
                     # print(len(urls))
@@ -301,8 +297,8 @@ class Crawl:
 
 
 if __name__ == '__main__':
-    loop = uvloop.new_event_loop()
-    asyncio.set_event_loop(loop)
+    # loop = uvloop.new_event_loop()
+    # asyncio.set_event_loop(loop)
     loop = asyncio.get_event_loop()
 
     roots = [
@@ -310,6 +306,7 @@ if __name__ == '__main__':
         # 'https://www.amazon.cn/s/ref=lp_658508051_nr_n_0?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658394051%2Cn%3A658508051%2Cn%3A659356051&bbn=658508051&ie=UTF8&qid=1511762114&rnid=658508051'
         'https://www.amazon.cn/s/ref=lp_658390051_nr_n_6?fst=as%3Aoff&rh=n%3A658390051%2Cn%3A%21658391051%2Cn%3A658683051&bbn=658391051&ie=UTF8&qid=1511768359&rnid=658391051'
     ]
+    # r.lpush("tp", "hello world")
 
     cfg = ConfigParser()
     cfg.read(os.path.expanduser('~/.config_crawl.ini'))
@@ -319,12 +316,15 @@ if __name__ == '__main__':
         proxy = cfg.get('proxy', 'auth_proxy')
         crawler = Crawl(roots, proxy=proxy)
     else:
-        proxy = None
-        crawler = Crawl(roots, base_url= base_url)
+        # proxy = None
+        pool = redis.ConnectionPool(host='127.0.0.1', port=6379, db=0, password="foobared")
+        r = redis.StrictRedis(connection_pool=pool)
+        crawler = Crawl(roots)
 
     try:
         a1 = time.time()
         loop.run_until_complete(crawler.crawl())  # Crawler gonna crawl.
+        # crawler.crawl()
         print('cost time: {}'.format(time.time()-a1))
     except KeyboardInterrupt:
         sys.stderr.flush()
