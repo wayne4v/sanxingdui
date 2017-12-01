@@ -1,10 +1,21 @@
-from collections import namedtuple
+def c():
+    # yield 1
+    for i in range(4):
+        yield i ** 2
 
-# Task 所需要携带的属性
-# Node = namedtuple("Node", ["url", "re", "callback"])
-User = namedtuple('User', ['name', 'sex', 'age'])
-user = User(name='kongxx', sex='male', age=21)
-user = User._make(['kongxx', 'male', 21])
+def d():
+    x = 1
+    while True:
+        y = yield x
+        print(y)
+# print(type(c()))
+#
+# print(type(1))
 
-print(user)
-# print(Node)
+# generator = c()
+# for g in generator:
+#     print(g)
+
+geni = d()
+geni.__next__()
+geni.send(30)
